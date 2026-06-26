@@ -1,0 +1,38 @@
+version: 2
+
+models:
+  - name: feature_customer_rfm
+    description: "Feature table RFM para modelos de churn / propensión / segmentación."
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+      - name: r_score
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 1
+              max_value: 5
+      - name: rfm_total
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 3
+              max_value: 15
+
+exposures:
+  - name: customer_segmentation_model
+    type: ml
+    maturity: medium
+    owner:
+      name: Andres
+      email: data@example.com
+    description: "Modelo de segmentación de clientes (consume feature_customer_rfm)."
+    depends_on:
+      - ref('feature_customer_rfm')
+  - name: executive_revenue_dashboard
+    type: dashboard
+    maturity: high
+    url: http://localhost:8088
+    owner: {name: BI, email: bi@example.com}
+    description: "Dashboard ejecutivo de ingresos en Superset."
+    depends_on:
+      - ref('fct_orders')
+      - ref('dim_customers')

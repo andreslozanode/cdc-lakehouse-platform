@@ -1,0 +1,47 @@
+{
+  "type": "record",
+  "name": "Envelope",
+  "namespace": "cdc.public.orders",
+  "doc": "Debezium full change envelope for public.orders (Avro, Schema Registry). Backward-compatible: new optional fields only.",
+  "fields": [
+    {
+      "name": "before",
+      "type": ["null", {
+        "type": "record",
+        "name": "Value",
+        "fields": [
+          {"name": "order_id", "type": "long"},
+          {"name": "customer_id", "type": "long"},
+          {"name": "status", "type": "string"},
+          {"name": "order_ts", "type": {"type": "long", "logicalType": "timestamp-micros"}},
+          {"name": "total_amount", "type": {"type": "bytes", "logicalType": "decimal", "precision": 12, "scale": 2}},
+          {"name": "currency", "type": "string", "default": "USD"},
+          {"name": "updated_at", "type": {"type": "long", "logicalType": "timestamp-micros"}}
+        ]
+      }],
+      "default": null
+    },
+    {"name": "after", "type": ["null", "Value"], "default": null},
+    {
+      "name": "source",
+      "type": {
+        "type": "record",
+        "name": "Source",
+        "fields": [
+          {"name": "version", "type": "string"},
+          {"name": "connector", "type": "string"},
+          {"name": "name", "type": "string"},
+          {"name": "ts_ms", "type": "long"},
+          {"name": "snapshot", "type": ["null", "string"], "default": null},
+          {"name": "db", "type": "string"},
+          {"name": "schema", "type": "string"},
+          {"name": "table", "type": "string"},
+          {"name": "lsn", "type": ["null", "long"], "default": null},
+          {"name": "txId", "type": ["null", "long"], "default": null}
+        ]
+      }
+    },
+    {"name": "op", "type": "string", "doc": "c=create, u=update, d=delete, r=read(snapshot)"},
+    {"name": "ts_ms", "type": ["null", "long"], "default": null}
+  ]
+}

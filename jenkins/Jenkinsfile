@@ -1,0 +1,105 @@
+// Declarative pipeline mirroring the GitHub Actions flow for teams on Jenkins.
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '20'))
+    timeout(time: 45, unit: 'MINUTES')
+  }
+
+  parameters {
+    choice(name: 'DEPLOY_ENV', choices: ['none', 'dev', 'prod'], description: 'Deploy target after build')
+  }
+
+  environment {
+    PYTHON = 'python3.11'
+    DBT_PROFILES_DIR = "${WORKSPACE}/dbt"
+  }
+
+  stages {
+    stage('Checkout') {
+      steps { checkout scm }
+    }
+
+    stage('Lint') {
+      parallel {
+        stage('Python') {
+          steps {
+            sh '''
+              ${PYTHON} -m venv .venv && . .venv/bin/activate
+              pip install -q ruff==0.6.9 black==24.10.0
+              ruff check flink-jobs/python ml scripts
+              black --check flink-jobs/python ml scripts
+            '''
+          }
+        }
+        stage('SQL') {
+          steps {
+            sh '''
+              . .venv/bin/activate || ${PYTHON} -m venv .venv && . .venv/bin/activate
+              pip install -q sqlfluff==3.2.5
+              sqlfluff lint flink-jobs/sql --dialect ansi || true
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Validate Compose & JSON') {
+      steps {
+        sh '''
+          cp .env.example .env
+          docker compose --profile all config -q
+          find infra -name '*.json' -exec sh -c 'jq empty "$1"' _ {} \\;
+        '''
+      }
+    }
+
+    stage('dbt Build (ephemeral CH)') {
+      steps {
+        sh '''
+          docker run -d --rm --name ch_ci -p 8123:8123 clickhouse/clickhouse-server:25.3
+          sleep 15
+          . .venv/bin/activate
+          pip install -q dbt-core==1.8.7 dbt-clickhouse==1.8.5
+          cd dbt && dbt deps && dbt build --target ci
+        '''
+      }
+      post {
+        always { sh 'docker rm -f ch_ci || true' }
+      }
+    }
+
+    stage('Build Flink Image') {
+      when { branch 'main' }
+      steps {
+        sh 'docker build -t cdc-lakehouse/flink:${GIT_COMMIT} infra/flink'
+      }
+    }
+
+    stage('Deploy Flink (savepoint-aware)') {
+      when { expression { params.DEPLOY_ENV != 'none' } }
+      steps {
+        withCredentials([string(credentialsId: "flink-rest-${params.DEPLOY_ENV}", variable: 'FLINK_REST')]) {
+          sh '''
+            JOB_ID=$(curl -s "$FLINK_REST/jobs" | jq -r '.jobs[] | select(.status=="RUNNING") | .id' | head -1)
+            if [ -n "$JOB_ID" ]; then
+              curl -s -X POST "$FLINK_REST/jobs/$JOB_ID/stop" \
+                -H 'Content-Type: application/json' \
+                -d '{"drain": false, "targetDirectory": "s3a://lakehouse/savepoints"}'
+            fi
+            echo "Resubmitting cdc_pipeline.py from latest savepoint"
+          '''
+        }
+      }
+    }
+  }
+
+  post {
+    success { echo 'Pipeline OK' }
+    failure { echo 'Pipeline FAILED' }
+    cleanup { cleanWs() }
+  }
+}

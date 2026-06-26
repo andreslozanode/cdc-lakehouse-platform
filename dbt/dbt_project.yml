@@ -1,0 +1,48 @@
+name: 'cdc_lakehouse'
+version: '1.0.0'
+config-version: 2
+profile: 'cdc_lakehouse'
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+test-paths: ["tests"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+
+require-dbt-version: [">=1.8.0", "<2.0.0"]
+
+vars:
+  hot_lookback_days: 90
+
+models:
+  cdc_lakehouse:
+    +persist_docs:
+      relation: true
+      columns: true
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: ephemeral
+    marts:
+      core:
+        +materialized: table
+        +schema: marts
+        +engine: "MergeTree()"
+      ml:
+        +materialized: table
+        +schema: ml_features
+        +engine: "MergeTree()"
+
+seeds:
+  cdc_lakehouse:
+    country_region:
+      +column_types:
+        country: "LowCardinality(String)"
+        region: "LowCardinality(String)"
+
+snapshots:
+  cdc_lakehouse:
+    +target_schema: snapshots

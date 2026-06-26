@@ -1,0 +1,47 @@
+{
+  "title": "CDC Lakehouse — Pipeline Health",
+  "uid": "cdc-pipeline-health",
+  "schemaVersion": 39,
+  "version": 1,
+  "time": {"from": "now-1h", "to": "now"},
+  "refresh": "30s",
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Flink — Records In/Out por segundo",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {"expr": "sum(rate(flink_taskmanager_job_task_numRecordsIn[1m]))", "legendFormat": "in/s"},
+        {"expr": "sum(rate(flink_taskmanager_job_task_numRecordsOut[1m]))", "legendFormat": "out/s"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Flink — Checkpoint duration (ms)",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {"expr": "flink_jobmanager_job_lastCheckpointDuration", "legendFormat": "{{job_name}}"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "ClickHouse — Inserted rows/s",
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 8},
+      "targets": [
+        {"expr": "rate(ClickHouseProfileEvents_InsertedRows[1m])", "legendFormat": "rows/s"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Ingresos por país (gold, ClickHouse)",
+      "datasource": {"type": "grafana-clickhouse-datasource", "uid": "clickhouse"},
+      "gridPos": {"h": 8, "w": 16, "x": 8, "y": 8},
+      "targets": [
+        {"rawSql": "SELECT order_date AS t, country, sum(revenue) AS revenue FROM analytics.v_revenue_by_day GROUP BY t, country ORDER BY t", "format": "time_series"}
+      ]
+    }
+  ]
+}

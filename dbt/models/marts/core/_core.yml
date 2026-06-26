@@ -1,0 +1,44 @@
+version: 2
+
+models:
+  - name: fct_orders
+    description: "Hecho de pedidos enriquecido. Particionado por mes; incremental."
+    config:
+      contract:
+        enforced: true
+    columns:
+      - name: order_id
+        data_type: Int64
+        constraints: [{type: not_null}]
+        tests: [unique]
+      - name: customer_id
+        data_type: Int64
+      - name: country
+        data_type: LowCardinality(String)
+      - name: segment
+        data_type: LowCardinality(String)
+      - name: status
+        data_type: LowCardinality(String)
+      - name: currency
+        data_type: LowCardinality(String)
+      - name: total_amount
+        data_type: Decimal(14, 2)
+      - name: item_count
+        data_type: UInt64
+      - name: total_units
+        data_type: Int64
+      - name: items_amount
+        data_type: Decimal(14, 2)
+      - name: order_date
+        data_type: Date
+      - name: updated_at
+        data_type: DateTime64(6)
+  - name: dim_customers
+    description: "Dimensión cliente con métricas RFM básicas y región."
+    columns:
+      - name: customer_id
+        tests: [not_null, unique]
+      - name: lifetime_value
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0

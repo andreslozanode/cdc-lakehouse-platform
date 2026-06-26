@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: serving
+    database: analytics
+    schema: analytics
+    description: "Tablas de serving en tiempo real materializadas por Flink (ReplacingMergeTree)."
+    freshness:
+      warn_after: {count: 15, period: minute}
+      error_after: {count: 60, period: minute}
+    loaded_at_field: updated_at
+    tables:
+      - name: customers_rt
+        identifier: customers_rt
+        columns:
+          - name: customer_id
+            tests: [not_null]
+      - name: orders_rt
+        identifier: orders_rt
+        columns:
+          - name: order_id
+            tests: [not_null]
+      - name: order_items_rt
+        identifier: order_items_rt
+        freshness: null   # sin updated_at de negocio

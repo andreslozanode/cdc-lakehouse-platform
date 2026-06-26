@@ -1,0 +1,58 @@
+%% Arquitectura CDC Streaming Lakehouse — flujo end-to-end
+flowchart LR
+    subgraph SRC["Fuente OLTP"]
+        PG[("PostgreSQL 16\nwal_level=logical\nREPLICA IDENTITY FULL")]
+    end
+
+    subgraph CDC["Captura de Cambios"]
+        DBZ["Debezium 3.1\n(pgoutput, envelope completo\nincremental snapshots)"]
+    end
+
+    subgraph BUS["Bus de Eventos"]
+        K[["Apache Kafka 3.8\nKRaft · zstd · 12 part."]]
+        SR{{"Schema Registry\nAvro · BACKWARD"}}
+    end
+
+    subgraph PROC["Procesamiento Stream"]
+        FLINK["Apache Flink 1.20 LTS\ndebezium-avro-confluent\nexactly-once · RocksDB inc."]
+    end
+
+    subgraph LAKE["Lakehouse (S3 + Iceberg)"]
+        BRONZE[("Bronze\nappend-only audit")]
+        SILVER[("Silver\nIceberg v2 upsert\ncurrent-state")]
+    end
+
+    subgraph SERVE["Serving OLAP"]
+        CH[("ClickHouse 26.3\nReplacingMergeTree\nasync inserts")]
+        GOLD[("Gold marts\nAggregatingMergeTree MV")]
+    end
+
+    subgraph TRANSFORM["Transformación"]
+        DBT["dbt\nstaging→inter→marts\ncontracts · tests · SCD2"]
+    end
+
+    subgraph CONSUME["Consumo"]
+        SUP["Apache Superset\nBI / Reporting"]
+        GRAF["Grafana\nObservabilidad"]
+        ML["ML / AI\nPyIceberg time-travel\nMLflow · KMeans RFM"]
+    end
+
+    PROM["Prometheus"]
+
+    PG -->|logical replication| DBZ --> K
+    DBZ -.registra/lee.-> SR
+    K --> FLINK
+    FLINK -.deser Avro.-> SR
+    FLINK -->|append| BRONZE
+    FLINK -->|upsert| SILVER
+    FLINK -->|JDBC sink| CH
+    CH --> GOLD
+    DBT -->|build| GOLD
+    GOLD --> SUP
+    SILVER -->|point-in-time| ML
+    CH -->|online features| ML
+    GOLD --> GRAF
+    FLINK -.metrics.-> PROM
+    CH -.metrics.-> PROM
+    K -.metrics.-> PROM
+    PROM --> GRAF

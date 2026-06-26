@@ -1,0 +1,26 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: cdc-lakehouse
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  - job_name: flink
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['jobmanager:9249', 'taskmanager:9249']
+
+  - job_name: clickhouse
+    metrics_path: /metrics
+    static_configs:
+      - targets: ['clickhouse:9363']
+
+  # Requiere kafka-exporter / jmx-exporter en producción
+  - job_name: kafka
+    static_configs:
+      - targets: ['kafka:9404']
+    honor_labels: true
